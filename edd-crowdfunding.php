@@ -1,12 +1,13 @@
 <?php
 /*
 Plugin Name: Edd Crowdfunding shortcode
-Version: 2.0
-Plugin URI: tupamaros.it
+Version: 1.1.0
+Plugin URI: https://github.com/garubi/edd-crowdfunding
 Description: Utilizzo: <code>[edd_crowdfunding target="3500" mode="Raccogli tutto" launch="01-01-2021" deadline="31-12-2021"]</code> <br> <code>target</code> è l'obbiettivo di raccolta; <code>mode</code> è la modalità di raccolta, è un testo libero, scrivi quello che vuoi; <code>launch</code> è la data di inizio della campagna; <code>deadline</code> è la data di scadenza della campagna, una volta superata verrà scritto "campagna terminata"
 Author: Stefano Garuti  
-Author URI: stefano@garuti.it
+Author URI: sgaruti@gmail.com
 */
+
 if ( defined( 'EDD_PLUGIN_DIR' ) ) {
     include_once EDD_PLUGIN_DIR . 'includes/class-edd-stats.php';
     include_once EDD_PLUGIN_DIR . 'includes/payments/class-payment-stats.php';
@@ -126,28 +127,18 @@ function edd_crowdfunding_shortcode( $atts ) {
 		'edd_crowdfunding'
 	);
     
-    // if( $atts['deadline'] ){
-    //     $atts['deadline'] = str_replace( '/', '-', $atts['deadline'] );
-        $now = new DateTime( );
-        $dead = new DateTime( $atts['deadline'] );
-        $interval = $dead->diff( $now );
-        $diff = (int) $interval->format( '%r%a' );
-        $deadline = ($diff > 0 )? 'Campagna terminata' : abs($diff) . ' giorni rimanenti';
-    // }
+    $now = new DateTime( );
+    $dead = new DateTime( $atts['deadline'] );
+    $interval = $dead->diff( $now );
+    $diff = (int) $interval->format( '%r%a' );
+    $deadline = ($diff > 0 )? 'Campagna terminata' : abs($diff) . ' giorni rimanenti';
 
     $start = new DateTime( $atts['launch'] );
     $start_date = $start->format('Y/m/d');
     $end_date = $dead->format('Y/m/d');
-    // $end_date = false;
-    // echo $start_date;
-    // echo ' - ';
-    // echo $end_date; 
 
-    // $stats = new EDD_Payment_Stats;
     $stats = new CROWDF_Payment_Stats;
-    // $earnings   = $stats->get_earnings( '', $start_date, $end_date );
     $earnings   = $stats->get_pledges( $start_date, $end_date );
-    // var_dump( $earnings );  
     $earnings   = number_format_i18n( $earnings, 2 );
     $sales      = $stats->get_sales( 0, $start_date, $end_date );
     $sales      = number_format_i18n( $sales );
