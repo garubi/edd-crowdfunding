@@ -12,12 +12,12 @@ Basic plugin to host a crowdfunding campaign with Easy Digital Download.
 
 == Description ==
 Usage:
-[edd_crowdfunding target="3500" mode="Raccogli tutto" launch="01-01-2021" deadline="31-12-2021"]
+`[edd_crowdfunding target="3500" mode="Raccogli tutto" launch="01-01-2021" deadline="31-12-2021"]`
 Where:
-target è l'obbiettivo di raccolta; 
-mode è la modalità di raccolta, è un testo libero, scrivi quello che vuoi; 
-launch è la data di inizio della campagna; 
-deadline è la data di scadenza della campagna, una volta superata verrà scritto "campagna terminata"
+- `target` è l'obbiettivo di raccolta; 
+- `mode` è la modalità di raccolta, è un testo libero, scrivi quello che vuoi; 
+- `launch` è la data di inizio della campagna; 
+- `deadline` è la data di scadenza della campagna, una volta superata verrà scritto "campagna terminata"
 
 == Changelog ==
 1.1.0 [2024-02-23] - Updated to consider all of the pledges in the date range (was capped to 30 by EDD)
