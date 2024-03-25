@@ -3,7 +3,7 @@
 Plugin Name: Edd Crowdfunding shortcode
 Version: 1.1.0
 Plugin URI: https://github.com/garubi/edd-crowdfunding
-Description: Utilizzo: <code>[edd_crowdfunding target="3500" mode="Raccogli tutto" launch="01-01-2021" deadline="31-12-2021"]</code> <br> <code>target</code> è l'obbiettivo di raccolta; <code>mode</code> è la modalità di raccolta, è un testo libero, scrivi quello che vuoi; <code>launch</code> è la data di inizio della campagna; <code>deadline</code> è la data di scadenza della campagna, una volta superata verrà scritto "campagna terminata"
+Description: Fornisce alcuni shortcode per gestire una semplice campagna di crowdfunding con Easy Digital Download. Istruzioni qui: https://github.com/garubi/edd-crowdfunding
 Author: Stefano Garuti  
 Author URI: sgaruti@gmail.com
 */
@@ -108,6 +108,93 @@ class CROWDF_Payment_Stats extends EDD_Payment_Stats {
 		return round( $result, edd_currency_decimal_filter() );
 
     }
+    public function get_pledgers( $start_date = false, $end_date = false, $include_email = true ) {
+        $this->setup_dates( $start_date, $end_date );
+
+		// Make sure start date is valid
+		if ( is_wp_error( $this->start_date ) ) {
+			return $this->start_date;
+		}
+
+		// Make sure end date is valid
+		if ( is_wp_error( $this->end_date ) ) {
+			return $this->end_date;
+		}
+        /**
+         * Filters Order statuses that should be included when calculating stats.
+         *         *
+         * @param array $statuses Order statuses to include when generating stats.
+         */
+        $statuses = apply_filters( 'crowdf_pledgers_stats_post_statuses', edd_get_net_order_statuses() );
+
+        // Global earning stats
+        $args = array(
+            'post_type'              => 'edd_payment',
+            'nopaging'               => true,
+            'post_status'            => $statuses,
+            'fields'                 => 'ids',
+            'update_post_term_cache' => false,
+            'suppress_filters'       => false,
+            'start_date'             => $this->start_date, // These dates are not valid query args, but they are used for cache keys
+            'end_date'               => $this->end_date,
+            'edd_transient_type'     => 'edd_pledgers', // This is not a valid query arg, but is used for cache keying
+            'include_email'          => $include_email,
+        );
+
+        $args   = apply_filters( 'crowdf_stats_pledgers_args', $args );
+        $cached = get_transient( 'crowdf_stats_pledgers' );
+        $key    = md5( wp_json_encode( $args ) );
+
+        if ( ! isset( $cached[ $key ] ) ) {
+            if ( empty( $cached ) ) {
+                $cached = array();
+            }
+            $orders = edd_get_orders( array(
+                'type'          => 'sale',
+                'status__in'    => $args['post_status'],
+                'date_query'    => array(
+                    array(
+                        'after'     => array(
+                            'year'  => date( 'Y', $this->start_date ),
+                            'month' => date( 'm', $this->start_date ),
+                            'day'   => date( 'd', $this->start_date ),
+                        ),
+                        'before'    => array(
+                            'year'  => date( 'Y', $this->end_date ),
+                            'month' => date( 'm', $this->end_date ),
+                            'day'   => date( 'd', $this->end_date ),
+                        ),
+                        'inclusive' => true,
+                    ),
+                ),
+                'no_found_rows' => true,
+                'number'    => 0,
+            ) );
+
+            if ( $orders ) {
+                $customers = [];
+                foreach ( $orders as $key => $order ) {
+
+                    $customer = new EDD_Customer( $order->customer_id );
+                    $customers[$order->customer_id]['name'] = ucwords( str_replace( ',', '-', $customer->name ) ) ;
+                    if( 'true' == $include_email ){
+                        $customers[$order->customer_id]['email'] =  $customer->email;
+                    }                  
+                }
+
+                $customers = apply_filters( 'crowdf_pledgers_stats_earnings_total', $customers, $orders, $args );
+            }
+
+            // Cache the results for one hour
+            $cached[ $key ] = $customers;
+            set_transient( 'crowdf_stats_pledgers', $cached, DAY_IN_SECONDS );
+        }
+
+        $result = $cached[ $key ];
+
+		return $result;
+
+    }
 
 }
 
@@ -168,9 +255,68 @@ function edd_crowdfunding_shortcode( $atts ) {
     return $template;
 }
 
+add_shortcode( 'edd_pledgers', 'edd_pledgers_shortcode' );
+function edd_pledgers_shortcode( $atts ) {
+    if ( !class_exists('EDD_Payment_Stats')) return;
+
+	// Attributes
+	$atts = shortcode_atts(
+		array(
+			'launch' => '01-01-2021',
+            'include_email'    => 'true', // 'true', 'false'
+            'format'      => 'list', // 'list', 'textarea'
+            'separator'     => ',', // only when format == 'list'
+            'deadline'   => '01-02-2021',
+		),
+		$atts,
+		'edd_pledgers'
+	);
+
+    $dead = new DateTime( $atts['deadline'] );
+
+
+    $start = new DateTime( $atts['launch'] );
+    $start_date = $start->format('Y/m/d');
+    $end_date = $dead->format('Y/m/d');
+
+    $stats = new CROWDF_Payment_Stats;
+    $pledgers   = $stats->get_pledgers( $start_date, $end_date, $atts['include_email'] );
+    // var_dump( $pledgers );
+    
+    
+    if( 'list' == $atts['format']){
+        if( $atts['include_email'] ){
+           foreach ($pledgers as $key => $pledger) {
+                $items[] = join( ' ', $pledger );
+           }
+           $item = join( $atts['separator'], $items);
+        }
+        else{
+            $item = join( $atts['separator'], wp_list_pluck($pledgers, 'name'));
+        }
+    }
+    elseif( 'textarea' == $atts['format'] ){
+        $item = '<textarea rows="20">';
+        if( $atts['include_email'] ){
+            foreach ($pledgers as $key => $pledger) {                
+                 $items[] = join( $atts['separator'], $pledger );
+            }
+            $item .= join( "\n", $items);
+         }
+         else{
+             $item .= join( "\n", wp_list_pluck($pledgers, 'name'));
+         }
+         $item .= '</textarea>';
+
+    }
+
+    return $item;
+}
+
 add_action( 'edd_complete_purchase', 'crowdfunding_reset_earnings' );
 function crowdfunding_reset_earnings(){
     delete_transient('crowdf_stats_pledges');
+    delete_transient('crowdf_stats_pledgers');
 }
 
 function crowdfunding_load_dashicons(){
